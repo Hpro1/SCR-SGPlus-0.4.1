@@ -72,11 +72,16 @@ def click_signal(sig):
     if win32gui.GetWindowText(win32gui.GetForegroundWindow()) != "Roblox":
         return
 
-    if scan_for_dialog("signal"):
-        time.sleep(key_wait)
-        keyboard.press_and_release(sig)
-        time.sleep(backspace_wait)
-        keyboard.press_and_release("backspace")
+    autoit.mouse_click("left")
+
+    while True:
+        more_center = pyautogui.locateCenterOnScreen('more.png', confidence=0.2)
+        if more_center:
+            break
+
+    keyboard.press_and_release(sig)
+    time.sleep(backspace_wait)
+    keyboard.press_and_release("backspace")
 
 
 def click_camera_button():
@@ -86,47 +91,49 @@ def click_camera_button():
     """
     if win32gui.GetWindowText(win32gui.GetForegroundWindow()) != "Roblox":
         return
-
+    
     if pyautogui.locateCenterOnScreen('rotate.png', confidence=0.9):
         keyboard.press_and_release("backspace")
         hwnd = win32gui.FindWindow(None, 'Roblox')
         x0, y0, x1, y1 = win32gui.GetWindowRect(hwnd)
         w = x1 - x0
         h = y1 - y0
-        autoit.mouse_move(math.ceil(w / 2), math.ceil(h / 2), 2)
+        autoit.mouse_move(math.ceil(w/2), math.ceil(h/2), 2)
         keyboard.press_and_release("backspace")
         keyboard.press_and_release("backspace")
         return
-    mouseCoords = pyautogui.position()
-    mouseCoordsX, mouseCoordsY = mouseCoords
+    
     autoit.mouse_click("left")
-    time.sleep(0.032)
-    output = pyautogui.locateCenterOnScreen('more.png', confidence=0.8)
-    time.sleep(0.016)
-    if output is None:
-        logfile = open("log.txt", "a")
-        if debug: logfile.write("Camera button not found\n")
-        logfile.close()
+
+    more_center = None
+    start_time = time.time()
+    while not more_center and time.time() - start_time < 0.4:
+        more_center = pyautogui.locateCenterOnScreen('more.png', confidence=0.7)
+
+        if not more_center:
+            plat_center = pyautogui.locateCenterOnScreen('plat.png', confidence=0.5)
+
+            if plat_center:
+                x, y = plat_center
+                autoit.mouse_click("left", x, y, 1, 2)
+                return
+
+    if not more_center:
         return
-    else:
-        x, y = output
-        if debug: print(output)
-        time.sleep(0.016)
-        autoit.mouse_click("left", x, y, 1, 2)
-        time.sleep(0.032)
-        output = pyautogui.locateCenterOnScreen(
-            'camera.png', confidence=0.4)
-        time.sleep(0.032)
-        print(output)
-        if output is None:
-            logfile = open("log.txt", "a")
-            if debug: logfile.write("CAMERA: Not found after button press.\n")
-            logfile.close()
-            return
-        else:
-            x, y = output
-            time.sleep(0.016)
-            autoit.mouse_click("left", x, y, 1, 2)
+
+    x, y = more_center
+    autoit.mouse_click("left", x, y, 1, 2)
+
+    camera_center = None
+    start_time = time.time()
+    while not camera_center and time.time() - start_time < 1:
+        camera_center = pyautogui.locateCenterOnScreen('camera.png', grayscale=True, confidence=0.8)
+
+    if not camera_center:
+        return
+
+    x, y = camera_center
+    autoit.mouse_click("left", x, y, 1, 2)
 
 
 def able_to_run():
@@ -137,70 +144,6 @@ def able_to_run():
         return False
     else:
         return True
-
-
-def scan_for_dialog(type):
-    if not able_to_run(): return
-    if type == "signal":
-        mouse_pos = pyautogui.position()
-        mousex = mouse_pos[0]
-        mousey = mouse_pos[1]
-
-        window = win32gui.GetForegroundWindow()
-        autoit.mouse_click("left")
-        rect = win32gui.GetWindowRect(window)
-
-        bbox = [rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]]
-        x = bbox[0]
-        y = bbox[1]
-        w = bbox[2]
-        h = bbox[3]
-        time.sleep(
-            dialog_wait)  # Wait for a set time before checking if the dialog actually pops up. This ensures there should be no time when the script screengrabs and the dialog isn't open after clicking on a signal.
-        start_time_perf = time.perf_counter()
-
-        dialog_box_height = math.ceil((h - 32) * 0.125)
-        dialog_box_width = math.ceil(dialog_box_height * 2)
-        pixel_height = dialog_box_height * 0.171
-        button_shelf = dialog_box_height / 2 * 1.15
-        dialog_box_x = mousex - dialog_box_width / 2
-        dialog_box_y = mousey - dialog_box_height
-
-        capture = screen_grab(dialog_box_x, dialog_box_y, dialog_box_width, dialog_box_height * 2)
-        w, h = capture.size
-        capture.convert('RGB')
-        shelf = h / 2 * 1.15  # Where the colors we need to check are
-        upper = capture.crop((0, 0, w, h / 2))  # Upper
-        lower = capture.crop((0, h / 2, w, h))  # Lower
-        upperw, upperh = upper.size
-        lowerw, lowerh = lower.size
-        lowershelf = lower.crop((0, lowerh * 2 / 3, lowerw, lowerh * 2 / 3 + 1))
-        uppershelf = upper.crop((0, upperh / 2, upperw, upperh / 2 + 2))
-        imagesToProcess = [lowershelf, uppershelf]
-
-        flag = False
-        for image in imagesToProcess:
-            for i in range(math.ceil(image.width / 1.6)):
-                for val in color_vals:
-                    if i == 0 or image.height == 0: break
-                    r, g, b = image.getpixel((i, image.height - 1))
-                    if color_approx_eq((r, g, b), (val)):
-                        flag = True
-                        break
-                if flag:
-                    break
-            if flag:
-                break
-        if flag:
-            return True
-        else:
-            if debug:
-                logfile = open("log.txt", "a")
-                logfile.write("No dialog found\n")
-                logfile.close()
-            return False
-    elif type == "station" and debug:
-        print("None")
 
 
 def checkUpdate():
